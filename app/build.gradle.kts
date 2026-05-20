@@ -15,8 +15,23 @@ android {
         applicationId = "com.luke.workouttracker"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
+
+        buildConfigField("String", "UPDATE_REPO_OWNER", "\"Sir-Mudkip\"")
+        buildConfigField("String", "UPDATE_REPO_NAME", "\"Workout-Tracker\"")
+    }
+
+    signingConfigs {
+        create("releaseFromEnv") {
+            val storePath = System.getenv("RELEASE_KEYSTORE_PATH")
+            if (storePath != null && file(storePath).exists()) {
+                storeFile = file(storePath)
+                storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -26,6 +41,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            val envStore = System.getenv("RELEASE_KEYSTORE_PATH")
+            signingConfig = if (envStore != null && file(envStore).exists()) {
+                signingConfigs.getByName("releaseFromEnv")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
@@ -35,7 +56,10 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"

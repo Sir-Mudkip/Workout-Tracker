@@ -62,3 +62,66 @@ The debug APK works fine forever for personal use, but two small caveats:
 - If you ever uninstall and try to reinstall later, Android may warn *"this app was signed with a debug certificate"* — just tap install anyway.
 
 If those bug you later, generating a personal release keystore and switching the build to use it is about 10 minutes of work. For daily use as a personal app, the debug APK is genuinely fine.
+
+---
+
+# In-app updates via GitHub Releases
+
+Once set up, you push a git tag and your phone offers the update from inside the app (Settings → App version → Check for updates). No more dragging APKs around.
+
+## One-time setup
+
+### 1. Generate a release keystore
+
+Once. Keep it forever — if you lose it, you have to uninstall and reinstall to switch to a new key.
+
+```bash
+keytool -genkey -v \
+  -keystore release.keystore \
+  -alias workout-tracker \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Pick a store password and key password (can be the same). Answer the name/org prompts however you want — they don't matter for a personal app.
+
+**Back this file up somewhere safe (password manager, encrypted USB, whatever).** Don't commit it to git.
+
+### 2. Add four GitHub secrets
+
+GitHub repo → Settings → Secrets and variables → Actions → New repository secret:
+
+| Secret | Value |
+|---|---|
+| `RELEASE_KEYSTORE_B64` | output of `base64 -w0 release.keystore` |
+| `RELEASE_KEYSTORE_PASSWORD` | the store password you set |
+| `RELEASE_KEY_ALIAS` | `workout-tracker` |
+| `RELEASE_KEY_PASSWORD` | the key password you set |
+
+### 3. First install (one-time uninstall required)
+
+Your phone currently has a debug-signed build. The first CI release will be signed with the new release key, and Android refuses cross-key updates. So:
+
+1. Tag and push `v0.2.0` (see below) — wait for the GitHub Action to finish and attach the APK.
+2. On your phone: **Settings → Apps → Workout Tracker → Uninstall**. *(Your data is in app storage; if you've configured anything important, JSON-export your programs first.)*
+3. Download `workout-tracker-v0.2.0.apk` from the GitHub Release page and sideload it once.
+4. From here on, in-app updates work.
+
+## Cutting a release
+
+```bash
+# Bump the version
+# edit app/build.gradle.kts: versionCode = 3, versionName = "0.3.0"
+git commit -am "Release v0.3.0"
+git tag v0.3.0
+git push && git push --tags
+```
+
+The `Release APK` workflow fires on the tag push, builds the signed APK, and attaches it to a new GitHub Release.
+
+On your phone: open the app → **Settings → App version → Check for updates → Download → Install**. The first time you try, Android will redirect you to grant "Install unknown apps" permission for Workout Tracker; do that once, then come back and tap Check again.
+
+## Versioning rules
+
+- `versionName` is what users see and what the in-app checker compares (`0.3.0` > `0.2.0`).
+- `versionCode` is an integer that Android uses internally — bump it every release, or installs will fail.
+- Tag must match `versionName` with a `v` prefix: tag `v0.3.0` for `versionName = "0.3.0"`.
