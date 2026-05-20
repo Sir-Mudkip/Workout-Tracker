@@ -1,0 +1,105 @@
+{
+  "name": "PPL 6-week",
+  "daysPerWeek": 3,
+  "totalWeeks": 6,
+  "days": [
+    {
+      "dayIndex": 1,
+      "name": "Push",
+      "exercises": [
+        {
+          "name": "Incline DB Press",
+          "startingWeight": 30,
+          "sets": [
+            { "setNumber": 1, "targetReps": 8 },
+            { "setNumber": 2, "targetReps": 8 },
+            { "setNumber": 3, "targetReps": 8 }
+          ]
+        },
+        {
+          "name": "Overhead Press",
+          "startingWeight": 40,
+          "sets": [
+            { "setNumber": 1, "targetReps": 5 },
+            { "setNumber": 2, "targetReps": 5 },
+            { "setNumber": 3, "targetReps": 5 }
+          ]
+        },
+        {
+          "name": "Tricep Pushdown",
+          "startingWeight": 25,
+          "sets": [
+            { "setNumber": 1, "targetReps": 12 },
+            { "setNumber": 2, "targetReps": 12 },
+            { "setNumber": 3, "targetReps": 12 }
+          ]
+        }
+      ]
+    },
+    {
+      "dayIndex": 2,
+      "name": "Pull",
+      "exercises": [
+        {
+          "name": "Deadlift",
+          "startingWeight": 100,
+          "sets": [
+            { "setNumber": 1, "targetReps": 5 },
+            { "setNumber": 2, "targetReps": 5 },
+            { "setNumber": 3, "targetReps": 5 }
+          ]
+        },
+        {
+          "name": "Pull Up",
+          "startingWeight": 0,
+          "sets": [
+            { "setNumber": 1, "targetReps": 8 },
+            { "setNumber": 2, "targetReps": 8 },
+            { "setNumber": 3, "targetReps": 8 }
+          ]
+        },
+        {
+          "name": "Barbell Row",
+          "startingWeight": 60,
+          "sets": [
+            { "setNumber": 1, "targetReps": 8 },
+            { "setNumber": 2, "targetReps": 8 },
+            { "setNumber": 3, "targetReps": 8 }
+          ]
+        }
+      ]
+    },
+    {
+      "dayIndex": 3,
+      "name": "Legs",
+      "exercises": [
+        {
+          "name": "Back Squat",
+          "startingWeight": 80,
+          "sets": [
+            { "setNumber": 1, "targetReps": 5 },
+            { "setNumber": 2, "targetReps": 5 },
+            { "setNumber": 3, "targetReps": 5 }
+          ]
+        },
+        {
+          "name": "Romanian Deadlift",
+          "startingWeight": 70,
+          "sets": [
+            { "setNumber": 1, "targetReps": 8 },
+            { "setNumber": 2, "targetReps": 8 },
+            { "setNumber": 3, "targetReps": 8 }
+          ]
+        },
+        {
+          "name": "Walking Lunge",
+          "startingWeight": 20,
+          "sets": [
+            { "setNumber": 1, "targetReps": 10 },
+            { "setNumber": 2, "targetReps": 10 }
+          ]
+        }
+      ]
+    }
+  ]
+}
