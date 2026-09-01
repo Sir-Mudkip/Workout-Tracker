@@ -1,21 +1,14 @@
 # Building and running
 
-## The wrapper is not committed
+## The wrapper
 
-There is no `gradlew` or `gradle/wrapper/gradle-wrapper.jar` in this
-repository — only `gradle-wrapper.properties`, which pins Gradle 8.7.
-Android Studio generates the rest on first project sync.
+`gradlew`, `gradlew.bat` and `gradle/wrapper/gradle-wrapper.jar` are
+committed, pinning Gradle 8.7. A fresh clone builds from the command line
+without opening Android Studio first.
 
-The practical effect is that a fresh clone cannot build from the command
-line until Studio has opened it once. If you need a CLI build before
-that, use the distribution Studio downloaded:
-
-```bash
-export JAVA_HOME=$HOME/.jdks/jbr-21.0.11
-export ANDROID_HOME=$HOME/Android/Sdk
-GRADLE=$(find ~/.gradle/wrapper/dists/gradle-8.7-bin -name gradle -type f -path '*/bin/*' | head -1)
-"$GRADLE" testDebugUnitTest --console=plain
-```
+They were absent until v0.3.0, which meant the release workflow — whose
+first step is `chmod +x ./gradlew` — could never run. Committing the
+wrapper is what a CI job needs; do not remove it.
 
 ## Use JDK 21, not Studio's bundled JBR
 
@@ -109,8 +102,61 @@ the dialog never carries the actual error:
 coredumpctl info        # if it crashed rather than exiting
 ```
 
-## Distribution
+## Releases
 
-Releases are built by `.github/workflows/release.yml` and published as
-APKs on GitHub. The app checks for and installs its own updates — see
-Updates in [`architecture.md`](./architecture.md).
+`.github/workflows/release.yml` triggers on a `v*` tag, builds a signed
+release APK, and publishes it as a GitHub Release. The app then offers
+that build to itself — see Updates in
+[`architecture.md`](./architecture.md).
+
+```bash
+git tag -a v0.3.1 -m "..."
+git push origin v0.3.1
+gh run watch $(gh run list --workflow=release.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+```
+
+The tag must start with `v`. `UpdateChecker` strips that prefix and
+compares the rest numerically against `BuildConfig.VERSION_NAME`, so a
+tag that parses to no integers — `beta-tag`, for example — makes the app
+report "up to date" forever. Bump `versionCode` and `versionName` in
+`app/build.gradle.kts` in the same commit as the tag.
+
+### Signing
+
+Four repository secrets, set once (`INSTALL.md:89`):
+
+| Secret | Value |
+|---|---|
+| `RELEASE_KEYSTORE_B64` | `base64 -w0 release.keystore` |
+| `RELEASE_KEYSTORE_PASSWORD` | store password |
+| `RELEASE_KEY_ALIAS` | `workout-tracker` |
+| `RELEASE_KEY_PASSWORD` | key password |
+
+`app/build.gradle.kts` reads these from the environment and **falls back
+to the debug keystore when they are absent**, so a misconfigured release
+build produces a debug-signed APK rather than failing. A wrong password
+does fail, with `KeytoolException: keystore password was incorrect`.
+
+Verify a keystore before trusting a secret:
+
+```bash
+~/.jdks/jbr-21.0.11/bin/keytool -list -keystore release.keystore
+```
+
+`keytool` ships with any JDK; there is one at `~/.jdks/` and another
+inside the Android Studio Flatpak.
+
+**Losing the keystore is unrecoverable.** Android refuses updates signed
+with a different key, so every future release must use the same file.
+Back it up off the machine.
+
+### Release builds cannot update a debug install
+
+A debug-signed install cannot be updated by a release-signed APK — the
+signatures differ, and Android rejects the update. Moving from a local
+Studio build to a CI release requires uninstalling first, which **deletes
+the app database**.
+
+JSON export carries programs only, not set logs
+([`json-format.md`](./json-format.md)), so training history does not
+survive that switch. There is currently no way to export it.

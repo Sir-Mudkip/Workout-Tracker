@@ -13,6 +13,7 @@ Users want the root [`README.md`](../README.md); setup instructions are in
 | [`database.md`](./database.md) | Migrations, the destructive fallback that makes an unregistered migration destroy user data, and the version history. |
 | [`building.md`](./building.md) | Toolchain, the uncommitted Gradle wrapper, JDK version traps, and getting the emulator to start. |
 | [`testing.md`](./testing.md) | The extract-and-test pattern, what the suite covers, and a specific account of what it does not. |
+| [`design-system.md`](./design-system.md) | The Trace visual system — tokens, type, the two-state accent rule, and why dynamic colour is gone. |
 | [`json-format.md`](./json-format.md) | The program import/export schema, and why it is not a backup. |
 
 ## Which page do I update?
@@ -27,6 +28,9 @@ Users want the root [`README.md`](../README.md); setup instructions are in
 | Extracted logic to make it testable, or added a test class | [`testing.md`](./testing.md) |
 | Found something that cannot be tested automatically | [`testing.md`](./testing.md) |
 | Changed the JSON schema or import behaviour | [`json-format.md`](./json-format.md) |
+| Added a screen, or any visual change | [`design-system.md`](./design-system.md) |
+| Changed a colour, type style or shape token | [`design-system.md`](./design-system.md) |
+| Cut a release, or touched signing | [`building.md`](./building.md) |
 | Hit a toolchain, Gradle or emulator problem worth not solving twice | [`building.md`](./building.md) |
 
 ## Note

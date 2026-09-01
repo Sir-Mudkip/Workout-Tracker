@@ -32,7 +32,8 @@ for the index and a table of which page to update for a given change.
 | Layers, screens, navigation, repositories | [`docs/architecture.md`](docs/architecture.md) |
 | Entities, weight and bodyweight semantics, ordering | [`docs/data-model.md`](docs/data-model.md) |
 | Migrations and the destructive fallback | [`docs/database.md`](docs/database.md) |
-| Toolchain, Gradle, emulator | [`docs/building.md`](docs/building.md) |
+| The Trace visual system and its tokens | [`docs/design-system.md`](docs/design-system.md) |
+| Toolchain, Gradle, emulator, releases | [`docs/building.md`](docs/building.md) |
 | What is tested and what is not | [`docs/testing.md`](docs/testing.md) |
 | Program import/export schema | [`docs/json-format.md`](docs/json-format.md) |
 
@@ -75,6 +76,25 @@ grep -c "COALESCE(sw.isBodyweight, pe.isBodyweight)" \
 
 Expect `2`. Reasoning: [`docs/testing.md`](docs/testing.md).
 
+## Visual changes
+
+- **No colour literals outside `ui/theme/Color.kt`.** Take colours from
+  `MaterialTheme.colorScheme` and text styles from `MaterialTheme.typography`.
+  ```bash
+  grep -rn "Color(0x" app/src/main/java --include=*.kt | grep -v "ui/theme/Color.kt"
+  ```
+- **Figures use `MaterialTheme.typography.numeric`** (IBM Plex Mono); words use
+  Archivo. A number inside a sentence stays in body type.
+- **The trace accent never appears without its track.** Accent alone is
+  decoration — use `onSurfaceVariant`. Draw lines with the `Trace*` primitives,
+  not a bespoke `Canvas`.
+- **Never reintroduce `dynamicColor`.** It silently replaces the whole scheme
+  with wallpaper colours and undoes the design.
+- **Check both themes.** There are no screenshot tests; looking is the only
+  verification.
+
+Tokens and reasoning: [`docs/design-system.md`](docs/design-system.md).
+
 ## Testing
 
 - **Extract pure logic and unit test it.** Anything expressible without
@@ -116,7 +136,7 @@ What is and is not covered: [`docs/testing.md`](docs/testing.md).
 ./gradlew installDebug        # install to device or emulator
 ```
 
-- **`gradlew` is not committed.** Android Studio generates it on first sync.
+- **The Gradle wrapper is committed** and pins Gradle 8.7. Do not remove it — the release workflow runs `./gradlew` directly.
 - **Use JDK 21, not Studio's bundled JBR 25** — Gradle 8.7 rejects Java 25 and
   reports only the version number as the error.
 - **Install schema changes from Android Studio**, not the CLI. A CLI install
