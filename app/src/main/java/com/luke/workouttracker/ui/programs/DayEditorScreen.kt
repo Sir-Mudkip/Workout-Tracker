@@ -47,7 +47,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.luke.workouttracker.data.db.entities.PlannedExercise
 import com.luke.workouttracker.data.db.entities.PlannedSet
+import com.luke.workouttracker.data.repo.ExerciseLibraryRepository
 import com.luke.workouttracker.data.repo.ProgramRepository
+import com.luke.workouttracker.ui.library.ExercisePicker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,12 +63,16 @@ import kotlinx.coroutines.launch
 class DayEditorViewModel @Inject constructor(
     handle: SavedStateHandle,
     private val repo: ProgramRepository,
+    private val library: ExerciseLibraryRepository,
 ) : ViewModel() {
     val programId: Long = checkNotNull(handle["programId"])
     val dayId: Long = checkNotNull(handle["dayId"])
 
     val exercises: StateFlow<List<PlannedExercise>> =
         repo.observeExercises(dayId).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val libraryNames: StateFlow<List<String>> =
+        library.observeNames().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _setsByExercise = MutableStateFlow<Map<Long, List<PlannedSet>>>(emptyMap())
     val setsByExercise: StateFlow<Map<Long, List<PlannedSet>>> = _setsByExercise.asStateFlow()
@@ -81,8 +87,17 @@ class DayEditorViewModel @Inject constructor(
         }
     }
 
-    fun addExercise(name: String, startingWeight: Double, sets: List<Pair<Int, Double?>>, isBodyweight: Boolean) {
-        viewModelScope.launch { repo.addExercise(dayId, name, startingWeight, sets, isBodyweight) }
+    fun addExercise(
+        name: String,
+        startingWeight: Double,
+        sets: List<Pair<Int, Double?>>,
+        isBodyweight: Boolean,
+        saveToLibrary: Boolean,
+    ) {
+        viewModelScope.launch {
+            if (saveToLibrary) library.save(name)
+            repo.addExercise(dayId, name, startingWeight, sets, isBodyweight)
+        }
     }
 
     fun deleteExercise(exercise: PlannedExercise) {
@@ -103,6 +118,7 @@ fun DayEditorScreen(
 ) {
     val exercises by vm.exercises.collectAsState()
     val sets by vm.setsByExercise.collectAsState()
+    val libraryNames by vm.libraryNames.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -145,9 +161,10 @@ fun DayEditorScreen(
 
     if (showAdd) {
         AddExerciseDialog(
+            libraryNames = libraryNames,
             onDismiss = { showAdd = false },
-            onConfirm = { name, weight, setRows, isBw ->
-                vm.addExercise(name, weight, setRows, isBw)
+            onConfirm = { name, weight, setRows, isBw, save ->
+                vm.addExercise(name, weight, setRows, isBw, save)
                 showAdd = false
             },
         )
@@ -197,12 +214,20 @@ private fun ExerciseCard(
 
 @Composable
 private fun AddExerciseDialog(
+    libraryNames: List<String>,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, startingWeight: Double, sets: List<Pair<Int, Double?>>, isBodyweight: Boolean) -> Unit,
+    onConfirm: (
+        name: String,
+        startingWeight: Double,
+        sets: List<Pair<Int, Double?>>,
+        isBodyweight: Boolean,
+        saveToLibrary: Boolean,
+    ) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
     var startWeight by remember { mutableStateOf("") }
     var isBodyweight by remember { mutableStateOf(false) }
+    var saveToLibrary by remember { mutableStateOf(true) }
     val rows = remember { mutableStateListOf(SetRowState("8", "")) }
 
     val effectiveStartWeight = if (isBodyweight && startWeight.isBlank()) 0.0 else startWeight.toDoubleOrNull()
@@ -214,7 +239,15 @@ private fun AddExerciseDialog(
                 enabled = name.isNotBlank() && effectiveStartWeight != null && rows.all { it.reps.toIntOrNull() != null },
                 onClick = {
                     val parsed = rows.map { row -> row.reps.toInt() to row.weight.toDoubleOrNull() }
-                    onConfirm(name.trim(), effectiveStartWeight ?: 0.0, parsed, isBodyweight)
+                    val trimmed = name.trim()
+                    val alreadyKnown = libraryNames.any { it.equals(trimmed, ignoreCase = true) }
+                    onConfirm(
+                        trimmed,
+                        effectiveStartWeight ?: 0.0,
+                        parsed,
+                        isBodyweight,
+                        saveToLibrary && !alreadyKnown,
+                    )
                 },
             ) { Text("Add") }
         },
@@ -222,9 +255,14 @@ private fun AddExerciseDialog(
         title = { Text("Add exercise") },
         text = {
             Column {
-                OutlinedTextField(
-                    value = name, onValueChange = { name = it },
-                    label = { Text("Name") }, modifier = Modifier.fillMaxWidth(),
+                ExercisePicker(
+                    names = libraryNames,
+                    query = name,
+                    onQueryChange = { name = it },
+                    saveToLibrary = saveToLibrary,
+                    onSaveToLibraryChange = { saveToLibrary = it },
+                    onNameSelected = { name = it },
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
