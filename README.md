@@ -37,4 +37,11 @@ See `samples/ppl-6week.json` for the schema. From the Program list → "Import J
 - **JSON**: kotlinx.serialization
 - **Progress**: per-week volume bars (no external chart lib — easy to swap in Vico/MPAndroidChart later)
 
-Module layout: see `app/src/main/java/com/luke/workouttracker/`.
+## Documentation
+
+Maintainer documentation is in [`docs/`](docs/README.md) — architecture, the
+data model, database migrations, build and emulator setup, testing, and the
+program JSON schema.
+
+Contributors and agents should read [`CLAUDE.md`](CLAUDE.md) (also `AGENTS.md`)
+for the rules, and [`CONTRIBUTING.md`](CONTRIBUTING.md) to get started.
