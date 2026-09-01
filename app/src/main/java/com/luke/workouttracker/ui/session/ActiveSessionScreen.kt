@@ -1,6 +1,7 @@
 package com.luke.workouttracker.ui.session
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -50,6 +52,9 @@ import com.luke.workouttracker.data.prefs.BodyweightPrefs
 import com.luke.workouttracker.data.repo.ExerciseLibraryRepository
 import com.luke.workouttracker.data.repo.ProgramRepository
 import com.luke.workouttracker.data.repo.SessionRepository
+import com.luke.workouttracker.ui.theme.TraceProgress
+import com.luke.workouttracker.ui.theme.TraceRing
+import com.luke.workouttracker.ui.theme.numeric
 import com.luke.workouttracker.ui.library.ExercisePicker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -365,6 +370,11 @@ private fun ActiveCard(
                 "Set ${set.setNumber} of ${state.totalSetsForCurrent} · target ${set.targetReps} reps @ $targetWeightText"
             }
             Text(targetText, style = MaterialTheme.typography.bodyMedium)
+            TraceProgress(
+                completed = state.currentSetIdx,
+                total = state.totalSetsForCurrent,
+                modifier = Modifier.padding(top = 12.dp),
+            )
             if (isBw) {
                 Text(
                     "+ bodyweight (${trim(bodyweight)} kg, set in Settings)",
@@ -382,6 +392,7 @@ private fun ActiveCard(
                     label = { Text("Reps") },
                     placeholder = { Text(repsHint) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    textStyle = MaterialTheme.typography.numeric,
                     modifier = Modifier.weight(1f),
                 )
                 OutlinedTextField(
@@ -390,6 +401,7 @@ private fun ActiveCard(
                     label = { Text(weightLabel) },
                     placeholder = { Text(weightHint) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    textStyle = MaterialTheme.typography.numeric,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -482,16 +494,32 @@ private fun RestTimerDialog(
         title = { Text("Rest") },
         text = {
             Column {
-                Text(
-                    formatDuration(elapsedMs),
-                    style = MaterialTheme.typography.displayLarge,
+                Box(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                )
+                    contentAlignment = Alignment.Center,
+                ) {
+                    TraceRing(
+                        progress = (elapsedMs / 180_000f).coerceIn(0f, 1f),
+                        modifier = Modifier.size(180.dp),
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                formatDuration(elapsedMs),
+                                style = MaterialTheme.typography.displayLarge,
+                            )
+                            Text(
+                                "ELAPSED",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
                 Text(
-                    "How did that feel? (optional)",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                    "HOW DID THAT FEEL?",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 12.dp, bottom = 6.dp),
                 )
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SetDifficulty.entries.forEach { level ->
@@ -515,7 +543,11 @@ private fun LoggedSetsCard(logs: List<SetLog>, state: ActiveSessionState) {
     if (logs.isEmpty()) return
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Text("Logged this session", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "LOGGED THIS SESSION",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             logs.forEach { log ->
                 val ex = state.exercises.firstOrNull { it.id == log.plannedExerciseId }
                 val exName = ex?.let { state.displayName(it) } ?: "?"
