@@ -1,24 +1,20 @@
 package com.luke.workouttracker.ui.progress
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -27,7 +23,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -37,6 +32,7 @@ import androidx.lifecycle.viewModelScope
 import com.luke.workouttracker.data.db.dao.ExerciseWeeklyVolume
 import com.luke.workouttracker.data.prefs.BodyweightPrefs
 import com.luke.workouttracker.data.repo.SessionRepository
+import com.luke.workouttracker.ui.theme.TraceChart
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -66,7 +62,6 @@ data class ExerciseProgress(
     val volumes: List<Double>,
     val firstVolume: Double,
     val lastVolume: Double,
-    val maxVolume: Double,
     val pctChange: Double?,
     /** Week number to the replacement name performed that week. */
     val swapsByWeek: Map<Int, String>,
@@ -85,7 +80,6 @@ private fun List<ExerciseWeeklyVolume>.toProgress(): List<ExerciseProgress> =
                 volumes = sorted.map { it.totalVolume },
                 firstVolume = first,
                 lastVolume = last,
-                maxVolume = sorted.maxOf { it.totalVolume },
                 pctChange = if (first > 0) (last - first) / first * 100.0 else null,
                 swapsByWeek = sorted.mapNotNull { row ->
                     row.swappedTo?.let { row.weekNumber to it }
@@ -129,7 +123,9 @@ fun ProgressScreen(
                 }
             } else {
                 item { TopGainsCard(progress) }
-                items(progress, key = { it.exerciseId }) { p -> ExerciseProgressCard(p) }
+                itemsIndexed(progress, key = { _, p -> p.exerciseId }) { index, p ->
+                    ExerciseProgressCard(p, highlighted = index == 0)
+                }
             }
         }
     }
@@ -155,7 +151,7 @@ private fun TopGainsCard(progress: List<ExerciseProgress>) {
 }
 
 @Composable
-private fun ExerciseProgressCard(p: ExerciseProgress) {
+private fun ExerciseProgressCard(p: ExerciseProgress, highlighted: Boolean) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Text(p.name, style = MaterialTheme.typography.titleMedium)
@@ -167,20 +163,29 @@ private fun ExerciseProgressCard(p: ExerciseProgress) {
                 "Latest volume: ${fmt(p.lastVolume)}"
             }
             Text(subtitle, style = MaterialTheme.typography.bodySmall)
-            Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                p.weeks.zip(p.volumes).forEach { (week, volume) ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        val weekLabel = if (p.swapsByWeek.containsKey(week)) "W$week*" else "W$week"
-                        Text(weekLabel, modifier = Modifier.width(40.dp), style = MaterialTheme.typography.bodySmall)
-                        Box(Modifier.weight(1f).padding(end = 8.dp)) {
-                            LinearProgressIndicator(
-                                progress = { (volume / p.maxVolume).toFloat().coerceIn(0f, 1f) },
-                                modifier = Modifier.fillMaxWidth().height(8.dp),
-                            )
-                        }
-                        Text(fmt(volume), style = MaterialTheme.typography.bodySmall)
-                    }
-                }
+            TraceChart(
+                values = p.volumes,
+                highlighted = highlighted,
+                hollowAt = p.weeks.withIndex()
+                    .filter { (_, week) -> p.swapsByWeek.containsKey(week) }
+                    .map { it.index }
+                    .toSet(),
+                modifier = Modifier.padding(top = 10.dp),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    "W${p.weeks.first()}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "W${p.weeks.last()} · ${fmt(p.lastVolume)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             if (p.swapsByWeek.isNotEmpty()) {
                 Column(Modifier.padding(top = 6.dp)) {
