@@ -2,7 +2,9 @@ package com.luke.workouttracker.data.repo
 
 import com.luke.workouttracker.data.db.dao.ExerciseWeeklyVolume
 import com.luke.workouttracker.data.db.dao.SessionDao
+import com.luke.workouttracker.data.db.dao.SwapDao
 import com.luke.workouttracker.data.db.dao.SetLogRow
+import com.luke.workouttracker.data.db.entities.SessionExerciseSwap
 import com.luke.workouttracker.data.db.entities.SetDifficulty
 import com.luke.workouttracker.data.db.entities.SetLog
 import com.luke.workouttracker.data.db.entities.WorkoutSession
@@ -13,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 @Singleton
 class SessionRepository @Inject constructor(
     private val dao: SessionDao,
+    private val swapDao: SwapDao,
 ) {
     suspend fun startOrResumeSession(programId: Long, weekNumber: Int, dayId: Long): Long {
         val existing = dao.findSession(programId, weekNumber, dayId)
@@ -48,6 +51,27 @@ class SessionRepository @Inject constructor(
     suspend fun setDifficulty(setLogId: Long, difficulty: SetDifficulty?) {
         dao.updateDifficulty(setLogId, difficulty?.stored)
     }
+
+    /** Replaces an exercise for this session only. Re-swapping overwrites. */
+    suspend fun swapExercise(
+        sessionId: Long,
+        plannedExerciseId: Long,
+        replacementName: String,
+        isBodyweight: Boolean,
+    ) {
+        swapDao.upsert(
+            SessionExerciseSwap(
+                sessionId = sessionId,
+                plannedExerciseId = plannedExerciseId,
+                replacementName = replacementName.trim(),
+                isBodyweight = isBodyweight,
+            )
+        )
+    }
+
+    /** Swaps for this session, keyed by the planned exercise they replace. */
+    suspend fun swapsForSession(sessionId: Long): Map<Long, SessionExerciseSwap> =
+        swapDao.swapsForSession(sessionId).associateBy { it.plannedExerciseId }
 
     suspend fun completeSession(sessionId: Long) {
         val s = dao.getSession(sessionId) ?: return
