@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
@@ -13,12 +15,15 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,10 +43,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.luke.workouttracker.data.db.entities.PlannedExercise
 import com.luke.workouttracker.data.db.entities.PlannedSet
+import com.luke.workouttracker.data.db.entities.SessionExerciseSwap
+import com.luke.workouttracker.data.db.entities.SetDifficulty
 import com.luke.workouttracker.data.db.entities.SetLog
 import com.luke.workouttracker.data.prefs.BodyweightPrefs
+import com.luke.workouttracker.data.repo.ExerciseLibraryRepository
 import com.luke.workouttracker.data.repo.ProgramRepository
 import com.luke.workouttracker.data.repo.SessionRepository
+import com.luke.workouttracker.ui.library.ExercisePicker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.delay
@@ -65,6 +74,7 @@ data class ActiveSessionState(
     val currentExerciseIdx: Int,
     val currentSetIdx: Int,
     val completed: Boolean,
+    val swapsByExercise: Map<Long, SessionExerciseSwap> = emptyMap(),
 ) {
     val currentExercise: PlannedExercise? = exercises.getOrNull(currentExerciseIdx)
     val currentSet: PlannedSet? = currentExercise?.let { setsByExercise[it.id]?.getOrNull(currentSetIdx) }
@@ -77,8 +87,23 @@ data class ActiveSessionState(
         isLastExercise && isLastSet
     }
 
-    fun prefillWeight(): Double {
+    /** The replacement name when this exercise is swapped for the session. */
+    fun displayName(ex: PlannedExercise): String =
+        swapsByExercise[ex.id]?.replacementName ?: ex.name
+
+    /** The swap's bodyweight setting when swapped, otherwise the planned one. */
+    fun isBodyweight(ex: PlannedExercise): Boolean =
+        swapsByExercise[ex.id]?.isBodyweight ?: ex.isBodyweight
+
+    /**
+     * Weight to pre-fill, or null to leave the field empty.
+     *
+     * Null for a swapped exercise: prior logs and the starting weight both
+     * describe the original movement, so suggesting them would be misleading.
+     */
+    fun prefillWeight(): Double? {
         val ex = currentExercise ?: return 0.0
+        if (swapsByExercise.containsKey(ex.id)) return null
         val set = currentSet ?: return ex.startingWeight
         val priorMap = priorLogsByExercise[ex.id].orEmpty()
         val lastWeekEntries = priorMap.filterKeys { it.first < weekNumber && it.second == set.setNumber }
@@ -91,11 +116,19 @@ data class ActiveSessionState(
     fun prefillReps(): Int = currentSet?.targetReps ?: 0
 }
 
+/**
+ * Swapping is allowed only before the first set of [plannedExerciseId] is
+ * logged in this session, so sets already performed are never relabelled.
+ */
+fun canSwapExercise(plannedExerciseId: Long, logs: List<SetLog>): Boolean =
+    logs.none { it.plannedExerciseId == plannedExerciseId }
+
 @HiltViewModel
 class ActiveSessionViewModel @Inject constructor(
     handle: SavedStateHandle,
     private val sessions: SessionRepository,
     private val programs: ProgramRepository,
+    private val library: ExerciseLibraryRepository,
     bodyweightPrefs: BodyweightPrefs,
 ) : ViewModel() {
     val sessionId: Long = checkNotNull(handle["sessionId"])
@@ -109,6 +142,13 @@ class ActiveSessionViewModel @Inject constructor(
     val bodyweight: StateFlow<Double> = bodyweightPrefs.kg
 
     private var lastLoggedSetId: Long? = null
+
+    /** Rating chosen for the set currently being rested after; null until picked. */
+    private val _currentDifficulty = MutableStateFlow<SetDifficulty?>(null)
+    val currentDifficulty: StateFlow<SetDifficulty?> = _currentDifficulty.asStateFlow()
+
+    val libraryNames: StateFlow<List<String>> =
+        library.observeNames().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val logs: StateFlow<List<SetLog>> = sessions.observeLogs(sessionId)
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -127,6 +167,7 @@ class ActiveSessionViewModel @Inject constructor(
             priorMap[ex.id] = rows.associate { (it.weekNumber to it.setNumber) to it.actualWeight }
         }
         val existingLogs = sessions.logsForSession(sessionId)
+        val swaps = sessions.swapsForSession(sessionId)
         val (curExIdx, curSetIdx) = computeResume(exercises, setsByExercise, existingLogs)
         _state.value = ActiveSessionState(
             sessionId = sessionId,
@@ -140,6 +181,7 @@ class ActiveSessionViewModel @Inject constructor(
             currentExerciseIdx = curExIdx,
             currentSetIdx = curSetIdx,
             completed = session.completedAt != null,
+            swapsByExercise = swaps,
         )
     }
 
@@ -164,7 +206,29 @@ class ActiveSessionViewModel @Inject constructor(
         val set = s.currentSet ?: return
         viewModelScope.launch {
             lastLoggedSetId = sessions.logSet(sessionId, ex.id, set.setNumber, reps, weight)
+            _currentDifficulty.value = null
             _restingSinceMs.value = System.currentTimeMillis()
+        }
+    }
+
+    /**
+     * Rate the set just logged. Rating is optional, and selecting the current
+     * rating again clears it, so a mis-tap is recoverable.
+     */
+    fun rateCurrentSet(difficulty: SetDifficulty) {
+        val setLogId = lastLoggedSetId ?: return
+        val next = if (_currentDifficulty.value == difficulty) null else difficulty
+        _currentDifficulty.value = next
+        viewModelScope.launch { sessions.setDifficulty(setLogId, next) }
+    }
+
+    /** Replace the current exercise for this session only. */
+    fun swapCurrentExercise(replacementName: String, isBodyweight: Boolean) {
+        val s = _state.value ?: return
+        val ex = s.currentExercise ?: return
+        viewModelScope.launch {
+            sessions.swapExercise(sessionId, ex.id, replacementName, isBodyweight)
+            _state.value = s.copy(swapsByExercise = sessions.swapsForSession(sessionId))
         }
     }
 
@@ -195,6 +259,7 @@ class ActiveSessionViewModel @Inject constructor(
             )
             _restingSinceMs.value = null
             lastLoggedSetId = null
+            _currentDifficulty.value = null
             if (completed) onAllDone()
         }
     }
@@ -209,7 +274,9 @@ fun ActiveSessionScreen(
     val state by vm.state.collectAsState()
     val logs by vm.logs.collectAsState()
     val restingSince by vm.restingSinceMs.collectAsState()
+    val difficulty by vm.currentDifficulty.collectAsState()
     val bodyweight by vm.bodyweight.collectAsState()
+    val libraryNames by vm.libraryNames.collectAsState()
 
     Scaffold(
         topBar = {
@@ -238,7 +305,10 @@ fun ActiveSessionScreen(
                 ActiveCard(
                     state = s,
                     bodyweight = bodyweight,
+                    logs = logs,
+                    libraryNames = libraryNames,
                     onComplete = { reps, weight -> vm.logCurrentSet(reps, weight) },
+                    onSwap = { name, isBw -> vm.swapCurrentExercise(name, isBw) },
                 )
                 LoggedSetsCard(logs, s)
             }
@@ -250,6 +320,8 @@ fun ActiveSessionScreen(
         RestTimerDialog(
             startMs = startMs,
             buttonLabel = if (isFinishing) "Finish workout" else "Next set",
+            difficulty = difficulty,
+            onRate = vm::rateCurrentSet,
             onAdvance = { vm.advance(onAllDone = onFinished) },
         )
     }
@@ -259,7 +331,10 @@ fun ActiveSessionScreen(
 private fun ActiveCard(
     state: ActiveSessionState,
     bodyweight: Double,
+    logs: List<SetLog>,
+    libraryNames: List<String>,
     onComplete: (Int, Double) -> Unit,
+    onSwap: (String, Boolean) -> Unit,
 ) {
     val ex = state.currentExercise ?: return
     val set = state.currentSet ?: return
@@ -269,23 +344,27 @@ private fun ActiveCard(
     var weight by remember(state.currentExerciseIdx, state.currentSetIdx) {
         mutableStateOf("")
     }
-    val isBw = ex.isBodyweight
+    var showSwap by remember(state.currentExerciseIdx) { mutableStateOf(false) }
+    val isBw = state.isBodyweight(ex)
     val weightLabel = if (isBw) "Added weight (kg)" else "Weight (kg)"
-    val targetWeight = state.prefillWeight()
+    val prefill = state.prefillWeight()
+    val targetWeight = prefill ?: 0.0
     val targetWeightText = if (isBw) {
         if (targetWeight == 0.0) "bodyweight" else "BW + ${trim(targetWeight)} kg"
     } else {
         "${trim(targetWeight)} kg"
     }
     val repsHint = state.prefillReps().toString()
-    val weightHint = trim(targetWeight)
+    val weightHint = prefill?.let { trim(it) } ?: ""
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp)) {
-            Text(ex.name, style = MaterialTheme.typography.headlineSmall)
-            Text(
-                "Set ${set.setNumber} of ${state.totalSetsForCurrent} · target ${set.targetReps} reps @ $targetWeightText",
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Text(state.displayName(ex), style = MaterialTheme.typography.headlineSmall)
+            val targetText = if (prefill == null) {
+                "Set ${set.setNumber} of ${state.totalSetsForCurrent} · target ${set.targetReps} reps"
+            } else {
+                "Set ${set.setNumber} of ${state.totalSetsForCurrent} · target ${set.targetReps} reps @ $targetWeightText"
+            }
+            Text(targetText, style = MaterialTheme.typography.bodyMedium)
             if (isBw) {
                 Text(
                     "+ bodyweight (${trim(bodyweight)} kg, set in Settings)",
@@ -319,14 +398,76 @@ private fun ActiveCard(
                 enabled = reps.toIntOrNull() != null && weight.toDoubleOrNull() != null,
                 onClick = { onComplete(reps.toInt(), weight.toDouble()) },
             ) { Text("Complete set") }
+            if (canSwapExercise(ex.id, logs)) {
+                TextButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { showSwap = true },
+                ) { Text("Swap exercise") }
+            }
         }
+    }
+
+    if (showSwap) {
+        SwapExerciseDialog(
+            libraryNames = libraryNames,
+            initialIsBodyweight = state.isBodyweight(ex),
+            onDismiss = { showSwap = false },
+            onConfirm = { name, isBw ->
+                onSwap(name, isBw)
+                showSwap = false
+            },
+        )
     }
 }
 
 @Composable
+private fun SwapExerciseDialog(
+    libraryNames: List<String>,
+    initialIsBodyweight: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, isBodyweight: Boolean) -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    var isBodyweight by remember { mutableStateOf(initialIsBodyweight) }
+    var saveToLibrary by remember { mutableStateOf(true) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Swap exercise") },
+        text = {
+            Column {
+                ExercisePicker(
+                    names = libraryNames,
+                    query = query,
+                    onQueryChange = { query = it },
+                    saveToLibrary = saveToLibrary,
+                    onSaveToLibraryChange = { saveToLibrary = it },
+                    onNameSelected = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = isBodyweight, onCheckedChange = { isBodyweight = it })
+                    Text("Bodyweight exercise", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = query.isNotBlank(),
+                onClick = { onConfirm(query.trim(), isBodyweight) },
+            ) { Text("Swap") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
 private fun RestTimerDialog(
     startMs: Long,
     buttonLabel: String,
+    difficulty: SetDifficulty?,
+    onRate: (SetDifficulty) -> Unit,
     onAdvance: () -> Unit,
 ) {
     var elapsedMs by remember(startMs) { mutableLongStateOf(System.currentTimeMillis() - startMs) }
@@ -340,12 +481,28 @@ private fun RestTimerDialog(
         onDismissRequest = onAdvance,
         title = { Text("Rest") },
         text = {
-            Text(
-                formatDuration(elapsedMs),
-                style = MaterialTheme.typography.displayLarge,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            )
+            Column {
+                Text(
+                    formatDuration(elapsedMs),
+                    style = MaterialTheme.typography.displayLarge,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+                Text(
+                    "How did that feel? (optional)",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SetDifficulty.entries.forEach { level ->
+                        FilterChip(
+                            selected = difficulty == level,
+                            onClick = { onRate(level) },
+                            label = { Text(level.label) },
+                        )
+                    }
+                }
+            }
         },
         confirmButton = {
             Button(onClick = onAdvance) { Text(buttonLabel) }
@@ -361,15 +518,19 @@ private fun LoggedSetsCard(logs: List<SetLog>, state: ActiveSessionState) {
             Text("Logged this session", style = MaterialTheme.typography.titleSmall)
             logs.forEach { log ->
                 val ex = state.exercises.firstOrNull { it.id == log.plannedExerciseId }
-                val exName = ex?.name ?: "?"
+                val exName = ex?.let { state.displayName(it) } ?: "?"
+                val swappedMark =
+                    if (ex != null && state.swapsByExercise.containsKey(ex.id)) " (swapped)" else ""
                 val weightText = when {
-                    ex?.isBodyweight == true && log.actualWeight == 0.0 -> "BW"
-                    ex?.isBodyweight == true -> "BW + ${trim(log.actualWeight)} kg"
+                    ex != null && state.isBodyweight(ex) && log.actualWeight == 0.0 -> "BW"
+                    ex != null && state.isBodyweight(ex) -> "BW + ${trim(log.actualWeight)} kg"
                     else -> "${trim(log.actualWeight)} kg"
                 }
                 val restPart = log.restAfterMs?.let { " · rest ${formatDuration(it)}" } ?: ""
+                val difficultyPart =
+                    SetDifficulty.fromStored(log.difficulty)?.let { " · ${it.label}" } ?: ""
                 Text(
-                    "$exName · set ${log.setNumber}: ${log.actualReps} × $weightText$restPart",
+                    "$exName · set ${log.setNumber}: ${log.actualReps} × $weightText$restPart$difficultyPart$swappedMark",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

@@ -13,6 +13,8 @@ data class ExerciseWeeklyVolume(
     val exerciseName: String,
     val weekNumber: Int,
     val totalVolume: Double,
+    /** Replacement name when this week's work was swapped, else null. */
+    val swappedTo: String? = null,
 )
 
 data class SetLogRow(
@@ -58,6 +60,9 @@ interface SessionDao {
     @Query("UPDATE set_logs SET restAfterMs = :restMs WHERE id = :setLogId")
     suspend fun updateRestAfter(setLogId: Long, restMs: Long)
 
+    @Query("UPDATE set_logs SET difficulty = :difficulty WHERE id = :setLogId")
+    suspend fun updateDifficulty(setLogId: Long, difficulty: Int?)
+
     @Query("SELECT * FROM set_logs WHERE sessionId = :sessionId ORDER BY plannedExerciseId, setNumber")
     suspend fun logsForSession(sessionId: Long): List<SetLog>
 
@@ -84,10 +89,12 @@ interface SessionDao {
         SELECT pe.id AS plannedExerciseId,
                pe.name AS exerciseName,
                s.weekNumber AS weekNumber,
-               SUM(sl.actualReps * (sl.actualWeight + CASE WHEN pe.isBodyweight THEN :bodyweight ELSE 0 END)) AS totalVolume
+               SUM(sl.actualReps * (sl.actualWeight + CASE WHEN COALESCE(sw.isBodyweight, pe.isBodyweight) THEN :bodyweight ELSE 0 END)) AS totalVolume,
+               MAX(sw.replacementName) AS swappedTo
         FROM set_logs sl
         INNER JOIN workout_sessions s ON s.id = sl.sessionId
         INNER JOIN planned_exercises pe ON pe.id = sl.plannedExerciseId
+        LEFT JOIN session_exercise_swaps sw ON sw.sessionId = sl.sessionId AND sw.plannedExerciseId = sl.plannedExerciseId
         WHERE s.programId = :programId
         GROUP BY pe.id, pe.name, s.weekNumber
         ORDER BY pe.name, s.weekNumber
@@ -100,10 +107,12 @@ interface SessionDao {
         SELECT pe.id AS plannedExerciseId,
                pe.name AS exerciseName,
                s.weekNumber AS weekNumber,
-               SUM(sl.actualReps * (sl.actualWeight + CASE WHEN pe.isBodyweight THEN :bodyweight ELSE 0 END)) AS totalVolume
+               SUM(sl.actualReps * (sl.actualWeight + CASE WHEN COALESCE(sw.isBodyweight, pe.isBodyweight) THEN :bodyweight ELSE 0 END)) AS totalVolume,
+               MAX(sw.replacementName) AS swappedTo
         FROM set_logs sl
         INNER JOIN workout_sessions s ON s.id = sl.sessionId
         INNER JOIN planned_exercises pe ON pe.id = sl.plannedExerciseId
+        LEFT JOIN session_exercise_swaps sw ON sw.sessionId = sl.sessionId AND sw.plannedExerciseId = sl.plannedExerciseId
         WHERE s.programId = :programId
         GROUP BY pe.id, pe.name, s.weekNumber
         ORDER BY pe.name, s.weekNumber

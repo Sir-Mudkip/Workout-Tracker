@@ -3,8 +3,10 @@ package com.luke.workouttracker.di
 import android.content.Context
 import androidx.room.Room
 import com.luke.workouttracker.data.db.AppDatabase
+import com.luke.workouttracker.data.db.dao.ExerciseLibraryDao
 import com.luke.workouttracker.data.db.dao.PeakDao
 import com.luke.workouttracker.data.db.dao.ProgramDao
+import com.luke.workouttracker.data.db.dao.SwapDao
 import com.luke.workouttracker.data.db.dao.SessionDao
 import dagger.Module
 import dagger.Provides
@@ -21,7 +23,13 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext ctx: Context): AppDatabase =
         Room.databaseBuilder(ctx, AppDatabase::class.java, "workout.db")
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
+            .addMigrations(
+                AppDatabase.MIGRATION_1_2,
+                AppDatabase.MIGRATION_2_3,
+                AppDatabase.MIGRATION_3_4,
+                AppDatabase.MIGRATION_4_5,
+                AppDatabase.MIGRATION_5_6,
+            )
             .fallbackToDestructiveMigration()
             .build()
 
@@ -33,4 +41,10 @@ object AppModule {
 
     @Provides
     fun providePeakDao(db: AppDatabase): PeakDao = db.peakDao()
+
+    @Provides
+    fun provideExerciseLibraryDao(db: AppDatabase): ExerciseLibraryDao = db.exerciseLibraryDao()
+
+    @Provides
+    fun provideSwapDao(db: AppDatabase): SwapDao = db.swapDao()
 }
