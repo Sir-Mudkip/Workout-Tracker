@@ -15,8 +15,8 @@ android {
         applicationId = "com.luke.workouttracker"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
 
         buildConfigField("String", "UPDATE_REPO_OWNER", "\"Sir-Mudkip\"")
         buildConfigField("String", "UPDATE_REPO_NAME", "\"Workout-Tracker\"")
