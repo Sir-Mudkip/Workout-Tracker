@@ -283,7 +283,12 @@ private fun AddExerciseDialog(
                     placeholder = { if (isBodyweight) Text("0") },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Text("Sets", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+                Text(
+                    "SETS",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
                 rows.forEachIndexed { idx, row ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Set ${idx + 1}", modifier = Modifier.width(56.dp))

@@ -273,8 +273,9 @@ private fun formatBytes(bytes: Long): String {
 @Composable
 private fun SectionHeader(text: String) {
     Text(
-        text,
-        style = MaterialTheme.typography.titleMedium,
+        text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
     )
 }
