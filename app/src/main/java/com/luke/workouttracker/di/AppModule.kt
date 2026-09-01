@@ -6,6 +6,7 @@ import com.luke.workouttracker.data.db.AppDatabase
 import com.luke.workouttracker.data.db.dao.ExerciseLibraryDao
 import com.luke.workouttracker.data.db.dao.PeakDao
 import com.luke.workouttracker.data.db.dao.ProgramDao
+import com.luke.workouttracker.data.db.dao.SwapDao
 import com.luke.workouttracker.data.db.dao.SessionDao
 import dagger.Module
 import dagger.Provides
@@ -27,6 +28,7 @@ object AppModule {
                 AppDatabase.MIGRATION_2_3,
                 AppDatabase.MIGRATION_3_4,
                 AppDatabase.MIGRATION_4_5,
+                AppDatabase.MIGRATION_5_6,
             )
             .fallbackToDestructiveMigration()
             .build()
@@ -42,4 +44,7 @@ object AppModule {
 
     @Provides
     fun provideExerciseLibraryDao(db: AppDatabase): ExerciseLibraryDao = db.exerciseLibraryDao()
+
+    @Provides
+    fun provideSwapDao(db: AppDatabase): SwapDao = db.swapDao()
 }

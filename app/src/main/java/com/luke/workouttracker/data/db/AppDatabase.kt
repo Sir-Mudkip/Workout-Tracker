@@ -7,12 +7,14 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.luke.workouttracker.data.db.dao.ExerciseLibraryDao
 import com.luke.workouttracker.data.db.dao.PeakDao
 import com.luke.workouttracker.data.db.dao.ProgramDao
+import com.luke.workouttracker.data.db.dao.SwapDao
 import com.luke.workouttracker.data.db.dao.SessionDao
 import com.luke.workouttracker.data.db.entities.CustomExercise
 import com.luke.workouttracker.data.db.entities.PeakResult
 import com.luke.workouttracker.data.db.entities.PlannedExercise
 import com.luke.workouttracker.data.db.entities.PlannedSet
 import com.luke.workouttracker.data.db.entities.Program
+import com.luke.workouttracker.data.db.entities.SessionExerciseSwap
 import com.luke.workouttracker.data.db.entities.SetLog
 import com.luke.workouttracker.data.db.entities.WorkoutDay
 import com.luke.workouttracker.data.db.entities.WorkoutSession
@@ -27,8 +29,9 @@ import com.luke.workouttracker.data.db.entities.WorkoutSession
         SetLog::class,
         PeakResult::class,
         CustomExercise::class,
+        SessionExerciseSwap::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -38,10 +41,36 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun exerciseLibraryDao(): ExerciseLibraryDao
 
+    abstract fun swapDao(): SwapDao
+
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE set_logs ADD COLUMN restAfterMs INTEGER")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS session_exercise_swaps (
+                        sessionId INTEGER NOT NULL,
+                        plannedExerciseId INTEGER NOT NULL,
+                        replacementName TEXT NOT NULL,
+                        isBodyweight INTEGER NOT NULL,
+                        PRIMARY KEY(sessionId, plannedExerciseId),
+                        FOREIGN KEY(sessionId) REFERENCES workout_sessions(id) ON DELETE CASCADE,
+                        FOREIGN KEY(plannedExerciseId) REFERENCES planned_exercises(id) ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_session_exercise_swaps_sessionId ON session_exercise_swaps(sessionId)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_session_exercise_swaps_plannedExerciseId ON session_exercise_swaps(plannedExerciseId)"
+                )
             }
         }
 
