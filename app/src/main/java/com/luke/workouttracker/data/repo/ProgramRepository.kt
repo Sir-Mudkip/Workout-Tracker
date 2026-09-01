@@ -130,7 +130,7 @@ class ProgramRepository @Inject constructor(
             PlannedExercise(
                 dayId = dayId,
                 name = name,
-                orderInDay = existing.size,
+                orderInDay = ExerciseOrdering.nextOrderInDay(existing.map { it.orderInDay }),
                 startingWeight = startingWeight,
                 isBodyweight = isBodyweight,
             )
@@ -164,7 +164,27 @@ class ProgramRepository @Inject constructor(
 
     suspend fun updateExercise(exercise: PlannedExercise) = dao.updateExercise(exercise)
 
-    suspend fun deleteExercise(exercise: PlannedExercise) = dao.deleteExercise(exercise)
+    suspend fun deleteExercise(exercise: PlannedExercise) = db.withTransaction {
+        dao.deleteExercise(exercise)
+        // Re-pack orderInDay on the remaining exercises so they stay 0..N-1
+        val remaining = dao.exercisesForDay(exercise.dayId)
+        ExerciseOrdering.repackTargets(remaining.map { it.orderInDay })
+            .forEach { (position, newOrder) ->
+                dao.updateExercise(remaining[position].copy(orderInDay = newOrder))
+            }
+    }
+
+    suspend fun moveExercise(dayId: Long, exerciseId: Long, direction: Int) = db.withTransaction {
+        // direction: -1 = up, +1 = down. Swaps orderInDay with the neighbour.
+        val exercises = dao.exercisesForDay(dayId)
+        val idx = exercises.indexOfFirst { it.id == exerciseId }
+        val swapIdx = ExerciseOrdering.swapTarget(exercises.size, idx, direction)
+            ?: return@withTransaction
+        val a = exercises[idx]
+        val b = exercises[swapIdx]
+        dao.updateExercise(a.copy(orderInDay = b.orderInDay))
+        dao.updateExercise(b.copy(orderInDay = a.orderInDay))
+    }
 
     suspend fun importJson(json: ProgramJson): Long = db.withTransaction {
         val programId = dao.insert(

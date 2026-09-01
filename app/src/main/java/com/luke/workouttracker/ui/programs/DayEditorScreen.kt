@@ -9,11 +9,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -86,6 +88,11 @@ class DayEditorViewModel @Inject constructor(
     fun deleteExercise(exercise: PlannedExercise) {
         viewModelScope.launch { repo.deleteExercise(exercise) }
     }
+
+    /** direction: -1 = up, +1 = down. */
+    fun moveExercise(exercise: PlannedExercise, direction: Int) {
+        viewModelScope.launch { repo.moveExercise(dayId, exercise.id, direction) }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -122,10 +129,14 @@ fun DayEditorScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            items(exercises, key = { it.id }) { ex ->
+            itemsIndexed(exercises, key = { _, ex -> ex.id }) { idx, ex ->
                 ExerciseCard(
                     exercise = ex,
                     sets = sets[ex.id].orEmpty(),
+                    canMoveUp = idx > 0,
+                    canMoveDown = idx < exercises.lastIndex,
+                    onMoveUp = { vm.moveExercise(ex, -1) },
+                    onMoveDown = { vm.moveExercise(ex, 1) },
                     onDelete = { vm.deleteExercise(ex) },
                 )
             }
@@ -147,6 +158,10 @@ fun DayEditorScreen(
 private fun ExerciseCard(
     exercise: PlannedExercise,
     sets: List<PlannedSet>,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
     onDelete: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -161,6 +176,12 @@ private fun ExerciseCard(
                         "Starting weight: ${trimNumber(exercise.startingWeight)} kg"
                     }
                     Text(startLabel, style = MaterialTheme.typography.bodySmall)
+                }
+                IconButton(onClick = onMoveUp, enabled = canMoveUp) {
+                    Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move up")
+                }
+                IconButton(onClick = onMoveDown, enabled = canMoveDown) {
+                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move down")
                 }
                 IconButton(onClick = onDelete) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete")
