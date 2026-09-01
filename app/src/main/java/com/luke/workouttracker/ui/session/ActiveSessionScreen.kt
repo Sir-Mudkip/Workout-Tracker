@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
@@ -13,6 +15,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +41,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.luke.workouttracker.data.db.entities.PlannedExercise
 import com.luke.workouttracker.data.db.entities.PlannedSet
+import com.luke.workouttracker.data.db.entities.SetDifficulty
 import com.luke.workouttracker.data.db.entities.SetLog
 import com.luke.workouttracker.data.prefs.BodyweightPrefs
 import com.luke.workouttracker.data.repo.ProgramRepository
@@ -110,6 +114,10 @@ class ActiveSessionViewModel @Inject constructor(
 
     private var lastLoggedSetId: Long? = null
 
+    /** Rating chosen for the set currently being rested after; null until picked. */
+    private val _currentDifficulty = MutableStateFlow<SetDifficulty?>(null)
+    val currentDifficulty: StateFlow<SetDifficulty?> = _currentDifficulty.asStateFlow()
+
     val logs: StateFlow<List<SetLog>> = sessions.observeLogs(sessionId)
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -164,8 +172,20 @@ class ActiveSessionViewModel @Inject constructor(
         val set = s.currentSet ?: return
         viewModelScope.launch {
             lastLoggedSetId = sessions.logSet(sessionId, ex.id, set.setNumber, reps, weight)
+            _currentDifficulty.value = null
             _restingSinceMs.value = System.currentTimeMillis()
         }
+    }
+
+    /**
+     * Rate the set just logged. Rating is optional, and selecting the current
+     * rating again clears it, so a mis-tap is recoverable.
+     */
+    fun rateCurrentSet(difficulty: SetDifficulty) {
+        val setLogId = lastLoggedSetId ?: return
+        val next = if (_currentDifficulty.value == difficulty) null else difficulty
+        _currentDifficulty.value = next
+        viewModelScope.launch { sessions.setDifficulty(setLogId, next) }
     }
 
     /** Advance to next set / next exercise / mark session complete. Dismisses rest timer. */
@@ -195,6 +215,7 @@ class ActiveSessionViewModel @Inject constructor(
             )
             _restingSinceMs.value = null
             lastLoggedSetId = null
+            _currentDifficulty.value = null
             if (completed) onAllDone()
         }
     }
@@ -209,6 +230,7 @@ fun ActiveSessionScreen(
     val state by vm.state.collectAsState()
     val logs by vm.logs.collectAsState()
     val restingSince by vm.restingSinceMs.collectAsState()
+    val difficulty by vm.currentDifficulty.collectAsState()
     val bodyweight by vm.bodyweight.collectAsState()
 
     Scaffold(
@@ -250,6 +272,8 @@ fun ActiveSessionScreen(
         RestTimerDialog(
             startMs = startMs,
             buttonLabel = if (isFinishing) "Finish workout" else "Next set",
+            difficulty = difficulty,
+            onRate = vm::rateCurrentSet,
             onAdvance = { vm.advance(onAllDone = onFinished) },
         )
     }
@@ -323,10 +347,13 @@ private fun ActiveCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun RestTimerDialog(
     startMs: Long,
     buttonLabel: String,
+    difficulty: SetDifficulty?,
+    onRate: (SetDifficulty) -> Unit,
     onAdvance: () -> Unit,
 ) {
     var elapsedMs by remember(startMs) { mutableLongStateOf(System.currentTimeMillis() - startMs) }
@@ -340,12 +367,28 @@ private fun RestTimerDialog(
         onDismissRequest = onAdvance,
         title = { Text("Rest") },
         text = {
-            Text(
-                formatDuration(elapsedMs),
-                style = MaterialTheme.typography.displayLarge,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            )
+            Column {
+                Text(
+                    formatDuration(elapsedMs),
+                    style = MaterialTheme.typography.displayLarge,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+                Text(
+                    "How did that feel? (optional)",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SetDifficulty.entries.forEach { level ->
+                        FilterChip(
+                            selected = difficulty == level,
+                            onClick = { onRate(level) },
+                            label = { Text(level.label) },
+                        )
+                    }
+                }
+            }
         },
         confirmButton = {
             Button(onClick = onAdvance) { Text(buttonLabel) }
@@ -368,8 +411,10 @@ private fun LoggedSetsCard(logs: List<SetLog>, state: ActiveSessionState) {
                     else -> "${trim(log.actualWeight)} kg"
                 }
                 val restPart = log.restAfterMs?.let { " · rest ${formatDuration(it)}" } ?: ""
+                val difficultyPart =
+                    SetDifficulty.fromStored(log.difficulty)?.let { " · ${it.label}" } ?: ""
                 Text(
-                    "$exName · set ${log.setNumber}: ${log.actualReps} × $weightText$restPart",
+                    "$exName · set ${log.setNumber}: ${log.actualReps} × $weightText$restPart$difficultyPart",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

@@ -58,6 +58,9 @@ interface SessionDao {
     @Query("UPDATE set_logs SET restAfterMs = :restMs WHERE id = :setLogId")
     suspend fun updateRestAfter(setLogId: Long, restMs: Long)
 
+    @Query("UPDATE set_logs SET difficulty = :difficulty WHERE id = :setLogId")
+    suspend fun updateDifficulty(setLogId: Long, difficulty: Int?)
+
     @Query("SELECT * FROM set_logs WHERE sessionId = :sessionId ORDER BY plannedExerciseId, setNumber")
     suspend fun logsForSession(sessionId: Long): List<SetLog>
 

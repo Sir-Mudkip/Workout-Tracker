@@ -3,6 +3,7 @@ package com.luke.workouttracker.data.repo
 import com.luke.workouttracker.data.db.dao.ExerciseWeeklyVolume
 import com.luke.workouttracker.data.db.dao.SessionDao
 import com.luke.workouttracker.data.db.dao.SetLogRow
+import com.luke.workouttracker.data.db.entities.SetDifficulty
 import com.luke.workouttracker.data.db.entities.SetLog
 import com.luke.workouttracker.data.db.entities.WorkoutSession
 import javax.inject.Inject
@@ -41,6 +42,11 @@ class SessionRepository @Inject constructor(
 
     suspend fun setRestAfter(setLogId: Long, restMs: Long) {
         dao.updateRestAfter(setLogId, restMs)
+    }
+
+    /** Pass null to clear a previously chosen rating. */
+    suspend fun setDifficulty(setLogId: Long, difficulty: SetDifficulty?) {
+        dao.updateDifficulty(setLogId, difficulty?.stored)
     }
 
     suspend fun completeSession(sessionId: Long) {

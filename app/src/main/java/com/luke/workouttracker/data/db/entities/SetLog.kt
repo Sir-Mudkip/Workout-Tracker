@@ -32,4 +32,6 @@ data class SetLog(
     val actualWeight: Double,
     val completedAt: Long = System.currentTimeMillis(),
     val restAfterMs: Long? = null,
+    /** [SetDifficulty.stored], or null when the set was left unrated. */
+    val difficulty: Int? = null,
 )

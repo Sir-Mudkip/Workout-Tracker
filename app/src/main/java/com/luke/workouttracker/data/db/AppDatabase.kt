@@ -25,7 +25,7 @@ import com.luke.workouttracker.data.db.entities.WorkoutSession
         SetLog::class,
         PeakResult::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -37,6 +37,13 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE set_logs ADD COLUMN restAfterMs INTEGER")
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Nullable: existing logs stay unrated.
+                db.execSQL("ALTER TABLE set_logs ADD COLUMN difficulty INTEGER")
             }
         }
 
