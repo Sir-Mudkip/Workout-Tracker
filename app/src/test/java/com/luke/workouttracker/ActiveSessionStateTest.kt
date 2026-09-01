@@ -33,13 +33,13 @@ class ActiveSessionStateTest {
 
     @Test fun prefill_uses_starting_weight_when_no_history_and_no_override() {
         val s = base(sets = listOf(PlannedSet(id = 1, exerciseId = 1, setNumber = 1, targetReps = 8)))
-        assertEquals(30.0, s.prefillWeight(), 0.0001)
+        assertEquals(30.0, s.prefillWeight()!!, 0.0001)
         assertEquals(8, s.prefillReps())
     }
 
     @Test fun prefill_uses_override_when_present_and_no_history() {
         val s = base(sets = listOf(PlannedSet(id = 1, exerciseId = 1, setNumber = 1, targetReps = 8, targetWeightOverride = 27.5)))
-        assertEquals(27.5, s.prefillWeight(), 0.0001)
+        assertEquals(27.5, s.prefillWeight()!!, 0.0001)
     }
 
     @Test fun prefill_prefers_last_week_actual_over_override_and_start() {
@@ -47,7 +47,7 @@ class ActiveSessionStateTest {
             priorLogs = mapOf((1 to 1) to 35.0),
             sets = listOf(PlannedSet(id = 1, exerciseId = 1, setNumber = 1, targetReps = 8, targetWeightOverride = 27.5)),
         )
-        assertEquals(35.0, s.prefillWeight(), 0.0001)
+        assertEquals(35.0, s.prefillWeight()!!, 0.0001)
     }
 
     @Test fun prefill_picks_most_recent_prior_week() {
@@ -56,7 +56,7 @@ class ActiveSessionStateTest {
             sets = listOf(PlannedSet(id = 1, exerciseId = 1, setNumber = 1, targetReps = 8)),
             weekNumber = 3,
         )
-        assertEquals(32.5, s.prefillWeight(), 0.0001)
+        assertEquals(32.5, s.prefillWeight()!!, 0.0001)
     }
 
     @Test fun prefill_ignores_logs_from_current_or_future_weeks() {
@@ -65,6 +65,6 @@ class ActiveSessionStateTest {
             sets = listOf(PlannedSet(id = 1, exerciseId = 1, setNumber = 1, targetReps = 8)),
             weekNumber = 2,
         )
-        assertEquals(30.0, s.prefillWeight(), 0.0001)
+        assertEquals(30.0, s.prefillWeight()!!, 0.0001)
     }
 }

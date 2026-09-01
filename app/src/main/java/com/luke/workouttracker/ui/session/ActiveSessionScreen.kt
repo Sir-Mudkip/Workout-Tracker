@@ -41,6 +41,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.luke.workouttracker.data.db.entities.PlannedExercise
 import com.luke.workouttracker.data.db.entities.PlannedSet
+import com.luke.workouttracker.data.db.entities.SessionExerciseSwap
 import com.luke.workouttracker.data.db.entities.SetDifficulty
 import com.luke.workouttracker.data.db.entities.SetLog
 import com.luke.workouttracker.data.prefs.BodyweightPrefs
@@ -69,6 +70,7 @@ data class ActiveSessionState(
     val currentExerciseIdx: Int,
     val currentSetIdx: Int,
     val completed: Boolean,
+    val swapsByExercise: Map<Long, SessionExerciseSwap> = emptyMap(),
 ) {
     val currentExercise: PlannedExercise? = exercises.getOrNull(currentExerciseIdx)
     val currentSet: PlannedSet? = currentExercise?.let { setsByExercise[it.id]?.getOrNull(currentSetIdx) }
@@ -81,8 +83,23 @@ data class ActiveSessionState(
         isLastExercise && isLastSet
     }
 
-    fun prefillWeight(): Double {
+    /** The replacement name when this exercise is swapped for the session. */
+    fun displayName(ex: PlannedExercise): String =
+        swapsByExercise[ex.id]?.replacementName ?: ex.name
+
+    /** The swap's bodyweight setting when swapped, otherwise the planned one. */
+    fun isBodyweight(ex: PlannedExercise): Boolean =
+        swapsByExercise[ex.id]?.isBodyweight ?: ex.isBodyweight
+
+    /**
+     * Weight to pre-fill, or null to leave the field empty.
+     *
+     * Null for a swapped exercise: prior logs and the starting weight both
+     * describe the original movement, so suggesting them would be misleading.
+     */
+    fun prefillWeight(): Double? {
         val ex = currentExercise ?: return 0.0
+        if (swapsByExercise.containsKey(ex.id)) return null
         val set = currentSet ?: return ex.startingWeight
         val priorMap = priorLogsByExercise[ex.id].orEmpty()
         val lastWeekEntries = priorMap.filterKeys { it.first < weekNumber && it.second == set.setNumber }
@@ -94,6 +111,13 @@ data class ActiveSessionState(
 
     fun prefillReps(): Int = currentSet?.targetReps ?: 0
 }
+
+/**
+ * Swapping is allowed only before the first set of [plannedExerciseId] is
+ * logged in this session, so sets already performed are never relabelled.
+ */
+fun canSwapExercise(plannedExerciseId: Long, logs: List<SetLog>): Boolean =
+    logs.none { it.plannedExerciseId == plannedExerciseId }
 
 @HiltViewModel
 class ActiveSessionViewModel @Inject constructor(
@@ -295,7 +319,7 @@ private fun ActiveCard(
     }
     val isBw = ex.isBodyweight
     val weightLabel = if (isBw) "Added weight (kg)" else "Weight (kg)"
-    val targetWeight = state.prefillWeight()
+    val targetWeight = state.prefillWeight() ?: 0.0
     val targetWeightText = if (isBw) {
         if (targetWeight == 0.0) "bodyweight" else "BW + ${trim(targetWeight)} kg"
     } else {
