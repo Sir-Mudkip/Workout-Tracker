@@ -68,6 +68,8 @@ data class ExerciseProgress(
     val lastVolume: Double,
     val maxVolume: Double,
     val pctChange: Double?,
+    /** Week number to the replacement name performed that week. */
+    val swapsByWeek: Map<Int, String>,
 )
 
 private fun List<ExerciseWeeklyVolume>.toProgress(): List<ExerciseProgress> =
@@ -85,6 +87,9 @@ private fun List<ExerciseWeeklyVolume>.toProgress(): List<ExerciseProgress> =
                 lastVolume = last,
                 maxVolume = sorted.maxOf { it.totalVolume },
                 pctChange = if (first > 0) (last - first) / first * 100.0 else null,
+                swapsByWeek = sorted.mapNotNull { row ->
+                    row.swappedTo?.let { row.weekNumber to it }
+                }.toMap(),
             )
         }
         .sortedBy { it.name }
@@ -165,7 +170,8 @@ private fun ExerciseProgressCard(p: ExerciseProgress) {
             Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 p.weeks.zip(p.volumes).forEach { (week, volume) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("W$week", modifier = Modifier.width(40.dp), style = MaterialTheme.typography.bodySmall)
+                        val weekLabel = if (p.swapsByWeek.containsKey(week)) "W$week*" else "W$week"
+                        Text(weekLabel, modifier = Modifier.width(40.dp), style = MaterialTheme.typography.bodySmall)
                         Box(Modifier.weight(1f).padding(end = 8.dp)) {
                             LinearProgressIndicator(
                                 progress = { (volume / p.maxVolume).toFloat().coerceIn(0f, 1f) },
@@ -173,6 +179,17 @@ private fun ExerciseProgressCard(p: ExerciseProgress) {
                             )
                         }
                         Text(fmt(volume), style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+            if (p.swapsByWeek.isNotEmpty()) {
+                Column(Modifier.padding(top = 6.dp)) {
+                    p.swapsByWeek.toSortedMap().forEach { (week, name) ->
+                        Text(
+                            "* W$week swapped: $name",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                     }
                 }
             }
