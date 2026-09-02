@@ -139,11 +139,30 @@ What is and is not covered: [`docs/testing.md`](docs/testing.md).
 - **The Gradle wrapper is committed** and pins Gradle 8.7. Do not remove it — the release workflow runs `./gradlew` directly.
 - **Use JDK 21, not Studio's bundled JBR 25** — Gradle 8.7 rejects Java 25 and
   reports only the version number as the error.
-- **Install schema changes from Android Studio**, not the CLI. A CLI install
-  over a Studio build fails on signature mismatch, and the only workaround
-  (`adb uninstall`) deletes the database you were about to verify.
+- **Every build source shares one debug keystore** (`~/.android/debug.keystore`
+  is a copy of Studio's). Do not let them diverge: a signature mismatch can only
+  be resolved by `adb uninstall`, which deletes the database — including the
+  data a schema change was about to be verified against.
 
 Emulator and toolchain problems: [`docs/building.md`](docs/building.md).
+
+## Releases
+
+Tagging `v*` builds a signed APK and publishes it; the app updates itself from
+GitHub Releases.
+
+- **Bump `versionCode` and `versionName` together**, and tag `versionName` with
+  a `v` prefix — `v0.3.2` for `"0.3.2"`. A tag containing no integers makes the
+  updater report "up to date" forever.
+- **One signing key across every build source.** Debug (CLI), debug (Studio) and
+  CI releases all use the same keystore. A second key means an uninstall to
+  switch, and an uninstall destroys the training history — JSON export covers
+  programs only.
+- **"App not installed" usually means Play Protect**, not a broken build. Check
+  signature, `versionCode` and `applicationId` first, then disable Play Protect
+  for the install.
+
+Release process, signing and versioning: [`docs/building.md`](docs/building.md).
 
 ## Conventions
 

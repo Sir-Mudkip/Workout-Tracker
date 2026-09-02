@@ -1,8 +1,8 @@
 # Workout Tracker documentation
 
 How the app is put together and why, for whoever maintains it next.
-Users want the root [`README.md`](../README.md); setup instructions are in
-[`INSTALL.md`](../INSTALL.md).
+Users want the root [`README.md`](../README.md), which covers setup and
+installing the app on a phone.
 
 ## Pages
 
@@ -30,7 +30,7 @@ Users want the root [`README.md`](../README.md); setup instructions are in
 | Changed the JSON schema or import behaviour | [`json-format.md`](./json-format.md) |
 | Added a screen, or any visual change | [`design-system.md`](./design-system.md) |
 | Changed a colour, type style or shape token | [`design-system.md`](./design-system.md) |
-| Cut a release, or touched signing | [`building.md`](./building.md) |
+| Cut a release, or touched signing or versioning | [`building.md`](./building.md) |
 | Hit a toolchain, Gradle or emulator problem worth not solving twice | [`building.md`](./building.md) |
 
 ## Note

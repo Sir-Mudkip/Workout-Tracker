@@ -28,7 +28,7 @@ jobs:
           KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
         run: |
           if [ -z "$KEYSTORE_B64" ]; then
-            echo "::error::RELEASE_KEYSTORE_B64 secret is not set. See INSTALL.md."
+            echo "::error::RELEASE_KEYSTORE_B64 secret is not set. See docs/building.md."
             exit 1
           fi
           mkdir -p "$HOME/keystore"

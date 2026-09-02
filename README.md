@@ -25,6 +25,31 @@ Local-only Android app to author multi-week workout programs, log set-by-set dur
 
 APK output: `app/build/outputs/apk/debug/app-debug.apk`
 
+## Install on a phone
+
+Build the APK, then move it across:
+
+1. Android Studio: **Build → Build App Bundle(s) / APK(s) → Build APK(s)**, then
+   click **locate** in the notification. Or `./gradlew assembleDebug`, which
+   writes to `app/build/outputs/apk/debug/app-debug.apk`.
+2. Plug the phone in and set the USB mode to **File transfer**, not charging
+   only — a charge-only cable or mode is invisible to the computer.
+3. Copy the APK to the phone's `Downloads/`, open it in the Files app, and
+   allow installs from that source when prompted.
+
+For repeated installs, `adb` avoids the copying:
+
+```bash
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+`-r` keeps your existing data. Enable **Developer options → USB debugging** on
+the phone first (tap *Build number* seven times in About phone), and accept the
+authorisation prompt.
+
+Once a signed release exists, the app updates itself from GitHub Releases
+instead — see [`docs/building.md`](docs/building.md).
+
 ## Bulk JSON import
 
 See `samples/ppl-6week.json` for the schema. From the Program list → "Import JSON" → paste contents.

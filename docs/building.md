@@ -33,23 +33,25 @@ JDK 21 Studio downloads alongside it (`~/.jdks/jbr-21.0.11`).
 ./gradlew installDebug        # install to a running device or emulator
 ```
 
-## Installing over a Studio build fails
+## Signature mismatches between build sources
 
-If the app was last installed by Android Studio, a CLI `installDebug`
-fails:
+`INSTALL_FAILED_UPDATE_INCOMPATIBLE` means the installed app and the new
+APK were signed with different keys. The only way to force it is
+`adb uninstall`, **which deletes the app database** — including whatever
+data a migration was about to be tested against (see
+[`database.md`](./database.md)).
 
-```
-INSTALL_FAILED_UPDATE_INCOMPATIBLE: Existing package
-com.luke.workouttracker signatures do not match newer version
-```
+Studio's Flatpak sandbox keeps its own debug keystore at
+`~/.var/app/com.google.AndroidStudio/config/.android/debug.keystore`,
+separate from the CLI's `~/.android/debug.keystore`. Those two producing
+different signatures is what makes a CLI install fail over a Studio build
+and vice versa.
 
-Studio's Flatpak sandbox uses a different debug keystore than a CLI
-build. The only way to force it is `adb uninstall`, **which deletes the
-app database** — including whatever data a migration was about to be
-tested against (see [`database.md`](./database.md)).
-
-Install from Android Studio instead. This is not a papercut to work
-around; it is the reason schema changes get verified in Studio.
+The fix in this project is that all three sources share one key: the CLI
+keystore is a copy of Studio's, and CI signs releases with the same file
+(see Signing below). Keep it that way — the alternative is an uninstall,
+and an uninstall costs the training history, which JSON export does not
+cover.
 
 ## Emulator on Wayland with the Flatpak Studio
 
@@ -121,9 +123,43 @@ tag that parses to no integers — `beta-tag`, for example — makes the app
 report "up to date" forever. Bump `versionCode` and `versionName` in
 `app/build.gradle.kts` in the same commit as the tag.
 
+### Versioning
+
+Three things must agree, and nothing checks them:
+
+- `versionName` in `app/build.gradle.kts` — what the user sees, and what
+  `UpdateChecker` compares numerically.
+- `versionCode` — an integer Android uses internally. It must increase
+  every release or the install fails with no useful message.
+- The **tag** — `versionName` with a `v` prefix. Tag `v0.3.2` for
+  `versionName = "0.3.2"`.
+
+A tag that parses to no integers, such as `beta-tag`, makes the updater
+report "up to date" forever.
+
+### Installing during development
+
+`adb` from the host works with the Flatpak Android Studio — the SDK lives
+outside the sandbox at `~/Android/Sdk`. A distrobox container is not
+needed.
+
+```bash
+./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+`-r` keeps existing data. The phone must be in **File transfer** USB mode;
+charge-only mode does not enumerate at all, and `lsusb | grep 18d1` is the
+quickest way to tell a cable or mode problem from an `adb` one.
+
+Debug builds are signed with `~/.android/debug.keystore`, which is
+**deliberately a copy of Android Studio's** so that CLI builds, Studio
+builds and CI releases all share one key. Without that, each source
+produces a different signature and none can update the others.
+
 ### Signing
 
-Four repository secrets, set once (`INSTALL.md:89`):
+Four repository secrets, set once:
 
 | Secret | Value |
 |---|---|
