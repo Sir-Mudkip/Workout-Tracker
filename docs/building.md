@@ -168,6 +168,29 @@ inside the Android Studio Flatpak.
 with a different key, so every future release must use the same file.
 Back it up off the machine.
 
+### Play Protect blocks the install
+
+An in-app update can download correctly and then fail with the installer's
+generic **"App not installed"**. Play Protect blocks sideloaded APKs, and
+the message says nothing about why.
+
+Play Store → profile → **Play Protect** → gear → turn off *Scan apps with
+Play Protect*, install, then turn it back on.
+
+The same block appears over adb as
+`INSTALL_FAILED_VERIFICATION_FAILURE`, which is worth remembering because
+that variant at least names the cause. For a one-off adb install:
+
+```bash
+adb shell settings put global verifier_verify_adb_installs 0
+adb install -r app.apk
+adb shell settings delete global verifier_verify_adb_installs
+```
+
+Before blaming Play Protect, rule out the causes that produce the same
+message: a signature mismatch with the installed build, a `versionCode`
+that is not higher, or a different `applicationId`.
+
 ### Release builds cannot update a debug install
 
 A debug-signed install cannot be updated by a release-signed APK — the
