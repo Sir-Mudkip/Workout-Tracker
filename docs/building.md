@@ -127,10 +127,28 @@ Four repository secrets, set once (`INSTALL.md:89`):
 
 | Secret | Value |
 |---|---|
-| `RELEASE_KEYSTORE_B64` | `base64 -w0 release.keystore` |
+| `RELEASE_KEYSTORE_B64` | `base64 -w0 <keystore>` |
 | `RELEASE_KEYSTORE_PASSWORD` | store password |
-| `RELEASE_KEY_ALIAS` | `workout-tracker` |
+| `RELEASE_KEY_ALIAS` | key alias |
 | `RELEASE_KEY_PASSWORD` | key password |
+
+**Releases are signed with Android Studio's debug keystore**, copied to
+`~/keystore/workout-signing.keystore` (alias `androiddebugkey`, password
+`android`, valid until 2056). That is deliberate: the installed app was
+signed with that key, and Android refuses an update signed with any
+other one. Using it keeps in-app updates working without uninstalling
+and destroying the training history, which JSON export cannot preserve.
+
+The cost is a well-known password. The key material is still unique to
+this machine, so it is not forgeable — but anyone who obtains the file
+can sign an update. Acceptable for a single-user app installed from its
+own GitHub releases; not acceptable if this is ever distributed more
+widely, at which point the fix is `apksigner` key rotation with a
+signing lineage rather than swapping the key outright.
+
+**Back that keystore up.** It lives in the Flatpak config directory
+originally, and a Flatpak reset would destroy it. Losing it means never
+being able to update an installed copy again.
 
 `app/build.gradle.kts` reads these from the environment and **falls back
 to the debug keystore when they are absent**, so a misconfigured release
