@@ -88,11 +88,30 @@ lighten `accent` — never darken `track` back.**
 Two families, bundled in `res/font/` rather than downloaded, because the
 app works entirely offline.
 
-- **Archivo** — display and body, as a single variable font. `minSdk = 26`
-  is exactly the floor for `FontVariation` weight axes. Requires
-  `@OptIn(ExperimentalTextApi::class)`.
+- **Archivo** — display and body, as four static weights (400/600/700/800).
 - **IBM Plex Mono** — every figure. Tabular by construction, so numbers
   do not shift width as they change.
+
+### A font that fails to load says nothing
+
+Archivo was first bundled as a single variable file loaded with
+`FontVariation.Settings`. It silently failed: Compose fell back to the
+system font while **still applying size, weight and letter spacing**, so
+the theme looked applied and only the letterforms were wrong. There is no
+log line for this, and it survived a full build and install.
+
+If type ever looks like Roboto while spacing and weight look right,
+suspect the font resource rather than the `Typography`. Static weights
+avoid both that failure and the synthetic bold that a single variable
+file without a working weight axis produces.
+
+### Define every style
+
+`Typography` must define **all fifteen** Material 3 styles, and the colour
+scheme **every** role. Anything left unset falls back to the Material
+baseline — Roboto for type, and the baseline purple for colour, which is
+how a purple floating action button appeared in an amber app. Undefined
+roles do not inherit; they default.
 
 The split is strict and load-bearing: **every figure a user reads as a
 value uses `MaterialTheme.typography.numeric`; every word uses Archivo.**
