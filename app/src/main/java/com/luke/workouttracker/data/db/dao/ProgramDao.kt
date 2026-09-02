@@ -55,10 +55,10 @@ interface ProgramDao {
     @Insert
     suspend fun insertExercise(exercise: PlannedExercise): Long
 
-    @Query("SELECT * FROM planned_exercises WHERE dayId = :dayId ORDER BY orderInDay")
+    @Query("SELECT * FROM planned_exercises WHERE dayId = :dayId ORDER BY orderInDay, id")
     suspend fun exercisesForDay(dayId: Long): List<PlannedExercise>
 
-    @Query("SELECT * FROM planned_exercises WHERE dayId = :dayId ORDER BY orderInDay")
+    @Query("SELECT * FROM planned_exercises WHERE dayId = :dayId ORDER BY orderInDay, id")
     fun observeExercisesForDay(dayId: Long): Flow<List<PlannedExercise>>
 
     @Update

@@ -54,6 +54,34 @@ class ExerciseOrderingTest {
         assertEquals(emptyMap<Int, Int>(), ExerciseOrdering.repackTargets(emptyList()))
     }
 
+    // movedOrder — positions after a move, immune to duplicate or gapped orders
+
+    @Test fun moving_up_swaps_the_two_positions() {
+        assertEquals(listOf(0, 2, 1, 3), ExerciseOrdering.movedOrder(size = 4, index = 2, direction = -1))
+    }
+
+    @Test fun moving_down_swaps_the_two_positions() {
+        assertEquals(listOf(0, 1, 3, 2), ExerciseOrdering.movedOrder(size = 4, index = 2, direction = 1))
+    }
+
+    @Test fun moving_off_either_end_is_a_no_op() {
+        assertNull(ExerciseOrdering.movedOrder(size = 4, index = 0, direction = -1))
+        assertNull(ExerciseOrdering.movedOrder(size = 4, index = 3, direction = 1))
+    }
+
+    @Test fun a_missing_position_is_a_no_op() {
+        assertNull(ExerciseOrdering.movedOrder(size = 4, index = -1, direction = 1))
+    }
+
+    @Test fun the_result_is_always_a_dense_permutation() {
+        // This is what makes the move survive duplicate orderInDay values in
+        // existing data: positions are reassigned 0..N-1 rather than having
+        // two order values swapped, which is a no-op when they are equal.
+        val moved = ExerciseOrdering.movedOrder(size = 5, index = 3, direction = -1)!!
+        assertEquals((0 until 5).toSet(), moved.toSet())
+        assertEquals(5, moved.size)
+    }
+
     // nextOrderInDay
 
     @Test fun the_first_exercise_in_an_empty_day_takes_order_zero() {

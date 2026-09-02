@@ -21,6 +21,25 @@ object ExerciseOrdering {
     }
 
     /**
+     * Positions in their new order after moving [index] by [direction], or
+     * null when the move is not possible.
+     *
+     * The caller reassigns `orderInDay` from the returned positions, which is
+     * what makes a move work on data whose order values are duplicated or
+     * gapped. Swapping two rows' order values instead is a silent no-op when
+     * those values happen to be equal — which older data can be, because
+     * `addExercise` once derived the order from the list size.
+     */
+    fun movedOrder(size: Int, index: Int, direction: Int): List<Int>? {
+        val target = swapTarget(size, index, direction) ?: return null
+        return (0 until size).toMutableList().apply {
+            val tmp = this[index]
+            this[index] = this[target]
+            this[target] = tmp
+        }
+    }
+
+    /**
      * Maps position -> new order value for the exercises whose order actually
      * changes when [currentOrders] (in list order) is re-packed to 0..N-1.
      * Deleting an exercise leaves a gap; re-packing closes it.

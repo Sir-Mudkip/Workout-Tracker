@@ -175,15 +175,18 @@ class ProgramRepository @Inject constructor(
     }
 
     suspend fun moveExercise(dayId: Long, exerciseId: Long, direction: Int) = db.withTransaction {
-        // direction: -1 = up, +1 = down. Swaps orderInDay with the neighbour.
+        // direction: -1 = up, +1 = down. Re-packs the whole day to 0..N-1 in
+        // the new order rather than swapping two order values, so a day whose
+        // orderInDay is duplicated or gapped still moves. Older data can be:
+        // addExercise once derived the order from the list size.
         val exercises = dao.exercisesForDay(dayId)
         val idx = exercises.indexOfFirst { it.id == exerciseId }
-        val swapIdx = ExerciseOrdering.swapTarget(exercises.size, idx, direction)
+        val positions = ExerciseOrdering.movedOrder(exercises.size, idx, direction)
             ?: return@withTransaction
-        val a = exercises[idx]
-        val b = exercises[swapIdx]
-        dao.updateExercise(a.copy(orderInDay = b.orderInDay))
-        dao.updateExercise(b.copy(orderInDay = a.orderInDay))
+        positions.forEachIndexed { newOrder, oldPosition ->
+            val ex = exercises[oldPosition]
+            if (ex.orderInDay != newOrder) dao.updateExercise(ex.copy(orderInDay = newOrder))
+        }
     }
 
     suspend fun importJson(json: ProgramJson): Long = db.withTransaction {
